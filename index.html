@@ -1,0 +1,3387 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Old Money - Twins</title>
+    <link rel="stylesheet" href="tailwind.css">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+
+<body class="h-full min-h-screen bg-dark overflow-y-hide" x-data="alpineInstance()">
+    <div class="h-full text-gray-200 p-4 lg:p-8">
+
+        <h1 class="mt-0 mb-3 font-light text-3xl" x-text="title"></h1>
+        <p class="text-xl text-gray-200 font-light mb-4" x-html="intro"></p>
+
+        <div class="flex items-center">
+            <input type="text" name="walletSearch" x-model="walletSearch" class="flex w-2/3 bg-dark focus:outline-none focus:shadow-outline border border-green-600 text-gray-200 rounded-lg py-2 px-4 appearance-none leading-normal">
+            <button type="submit" @click="fetchBills()" class="flex bg-green-600 text-dark font-semibold py-2 px-4 rounded hover:bg-green-700 ml-2" :class="[ isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700' ]" :disabled="isLoading">
+                Search
+            </button>
+            <template x-if="isError">
+                <div class="pl-4 text-xs font-thin text-red-600" x-text="error"></div>
+            </template>
+        </div>
+
+        <template x-if="userBillsLoaded">
+            <div class="py-2 pl-1 flex flex-wrap">
+                <div class="pr-2 font-thin"><span class="text-red-600">You</span> have <span x-text="total" class="text-green-600 font-semibold"></span> bills that have a twin:</div>
+                <template x-for="bill in userTwins">
+                    <div x-text="bill" class="pr-2 text-md font-semibold"></div>
+                </template>
+            </div> 
+        </template>
+
+        <div class="flex flex-wrap items-center pt-2">
+            <template x-if="jpgLoaded">
+                <div class="ml-2 pr-4 font-thin"> <span class="text-yellow-400">Jpg.store twins:</span></div>
+            </template>
+            <template x-if="!jpgLoaded">
+                <button type="submit" @click="fetchJpgStore()" class="flex bg-green-600 text-dark font-semibold py-2 px-4 mr-2 rounded hover:bg-green-700 mt-2" :class="[ isLoadingJpg ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700' ]" :disabled="isLoadingJpg">
+                    Get jpg.store twins
+                </button>
+            </template>
+            <template x-if="isErrorJpg">
+                <div class="pl-4 text-xs font-thin text-red-600" x-text="errorJpg"></div>
+            </template>
+            <template x-for="bill in jpgTwins">
+                <a x-bind:href="bill.url" class="text-gray-300 text-md font-semibold hover:text-yellow-400 text-center pr-2" x-text = "bill.name" target="_blank"></a> 
+            </template>
+        </div>
+
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 pt-4">
+            <template x-for="item in twins" :key="item.id">
+                <div class="bg-dark-lighter rounded-md m-2">
+                    <img x-bind:src="imgBaseUrl + item.twins[0].name + '.jpg'" class="max-w-full h-auto rounded-md" />
+                    <div class="grid grid-cols-3 gap-1 py-2">
+                        <template x-for="twin in item.twins">
+                            <div class="text-center">  
+                                <template x-if="twin.jpgstore">
+                                    <a x-bind:href="jpgBaseUrl + twin.assetId" :class="{ 'text-yellow-400': twin.jpgstore, 'text-red-600': twin.own}" class="text-gray-300 font-semibold hover:text-green-600 text-center" x-text = "twin.name" target="_blank"></a>
+                                </template>
+                                <template x-if="!twin.jpgstore">
+                                    <a x-bind:href="xessersonBaseUrl + twin.name" :class="{ 'text-yellow-400': twin.jpgstore, 'text-red-600': twin.own}" class="text-gray-300 font-semibold hover:text-green-600 text-center" x-text = "twin.name" target="_blank"></a>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+  
+    </div>
+
+    <div class="flex flex-col text-center text-xs text-gray-500">
+        <div>
+            Tombo#8428 / <a href="https://www.oldmoney.io/xesserson-house?user=s041byfpJqa9QQwNnt5YAzsq8sxO7ciQ" target="_blank" class="hover:text-green-600">Mfer. Tombo</a>
+        </div>
+    </div>
+</body>
+
+</html>
+
+<script>
+    function alpineInstance() {
+        return {
+            title: 'Old Money - Twins',
+            intro: 'Type the <code class="text-md text-green-600">address/$handle</code> of your Cardano wallet:',
+            policyId: '3bcc312ebe7cd9281ab3e3d641bf70f207012e539b0e6e7c3f1560d7',
+            walletSearch: localStorage.getItem("address") || '',
+            unitBaseUrl: 'https://pool.pm/a5425bd7bc4182325188af2340415827a73f845846c165d9e14c5aed.',
+            imgBaseUrl: 'https://old-money-nft.s3.amazonaws.com/2Bill/MintFinal/',
+            xessersonBaseUrl: 'https://www.oldmoney.io/print?asset=',
+            jpgBaseUrl: 'https://www.jpg.store/asset/',
+            isLoading: false,
+            isError: false,
+            error: '',
+            userBills: [],
+            userTwins: [],
+            userBillsLoaded: false,
+            total: 0,
+
+            isLoadingJpg: false,
+            jpgLoaded: false,
+            isErrorJpg: false,
+            errorJpg: '',
+            jpgPage: 1,
+            jpgTwins: [],
+            async fetchBills() {
+                this.isLoading = true;
+                await fetch(`https://pool.pm/wallet/${this.walletSearch}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            this.isLoading = false;
+                            this.error = `Error: ${response.status} - ${response.statusText}`
+                            this.isError = true;
+                        }
+                        return response.json()
+                    })
+                    .then((data) => {
+                        this.resetWalletHoldings();
+                        this.total = 0;
+                        this.userBills = [];
+                        this.userTwins = [];
+                        tokens = data.tokens;
+                        bills = tokens.filter(unit => { return unit.policy === this.policyId });
+                        bills.forEach(bill => {
+                            billName = bill.metadata.Asset;
+                            this.userBills.push(billName);
+
+                            this.twins.forEach(twin_bills => {
+                                let obj = twin_bills.twins.find((o, i) => {
+                                    if (o.name === billName) {
+                                        twin_bills.twins[i] = { name: twin_bills.twins[i].name, jpgstore: twin_bills.twins[i].jpgstore, assetId: twin_bills.twins[i].assetId, own: true };
+                                        this.total++;
+                                        this.userTwins.push(billName);
+                                        return true;
+                                    }
+                                });
+                            });
+                        });
+                        this.isLoading = false;
+                        this.isError = false;
+                        this.userBillsLoaded = true;
+                        localStorage.setItem('address', this.walletSearch);
+
+                    }).catch(function (err) {
+                        console.log(err);
+                    });
+            },
+
+            async fetchJpgStore(){
+                this.isLoadingJpg = true;
+                this.jpgTwins = [];
+                this.jpgPage = 1;
+                while(true){
+                    jpgListings = [];
+                    await fetch('https://server.jpgstoreapis.com/policy/3bcc312ebe7cd9281ab3e3d641bf70f207012e539b0e6e7c3f1560d7/listings?page=' + this.jpgPage)
+                    .then(response => {
+                        if (!response.ok) {
+                            this.isLoadingJpg = false;
+                            this.errorJpg = `Error: ${response.status} - ${response.statusText}`
+                            this.isErrorJpg = true;
+                        }
+                        return response.json()
+                    })
+                    .then((data) => {
+                        jpgListings.push(...data);
+                        this.jpgPage += 1;
+                    }).catch(function (err) {
+                        this.errorJpg = `Error :(`;
+                        this.isErrorJpg = true;
+                        console.log(this.isErrorJpg)
+                    });
+
+                    // zisti, ci sa nachadza nejaky twin v aktualnej davke
+                    jpgListings.forEach(bill => {
+                        let billName = bill['display_name'].replace(/[#. ]/g, "");
+                        let assetId = bill['asset_id'];
+                        this.twins.forEach(twin_bills => {
+                            let obj = twin_bills.twins.find((o, i) => {
+                                if (o.name === billName) {
+                                    twin_bills.twins[i] = { name: twin_bills.twins[i].name, own: twin_bills.twins[i].own, jpgstore: true, assetId: assetId };
+                                    this.jpgTwins.push({'name':billName, 'url': 'https://www.jpg.store/asset/'+ assetId});
+                                    return true;
+                                }
+                            });
+                        });
+                        
+                    });
+
+                    if(jpgListings.length == 0) {
+                        this.isLoadingJpg = false;
+                        this.jpgLoaded = true;
+                        break;
+                    }
+                }
+            },
+            resetWalletHoldings(){
+                this.twins.forEach((twin_bills, i) => {
+                    twin_bills.twins.forEach((twin, j) => {
+                        this.twins[i].twins[j] = {...this.twins[i].twins[j], own: false}
+                    });
+                });
+            },
+            twins:[
+                    {
+                        "id": 0,
+                        "img": "https://infura-ipfs.io/ipfs/QmRws8shsMYxWD7UDW2RkrYvjGqPJLw7KsrHf2UxEWaZpv",
+                        "twins": [
+                            {
+                                "name": "2Bill0042",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0213",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3045",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0241",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1042",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3107",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 1,
+                        "img": "https://infura-ipfs.io/ipfs/QmQ3YDnb8k8S3RLZdWC5nU52GaEdC7Nx9YCsYnCVNxjdWf",
+                        "twins": [
+                            {
+                                "name": "2Bill5082",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0939",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1654",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5657",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5380",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2571",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3052",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1125",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4413",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 3,
+                        "img": "https://infura-ipfs.io/ipfs/QmdnCYxKhoEiLf9mv6Caj8F2Xn6P6CXSBPSzvwX2WUi84S",
+                        "twins": [
+                            {
+                                "name": "2Bill0202",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3931",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3973",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3772",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4314",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1218",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1425",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2867",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1769",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1460",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1140",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2949",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0336",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3385",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3865",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2772",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0716",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4256",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2032",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 4,
+                        "img": "https://infura-ipfs.io/ipfs/QmeXygGV7KBQMnU6ycmUPrvyNB3fiP3oDsNqYq3DmKn92r",
+                        "twins": [
+                            {
+                                "name": "2Bill3018",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5333",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5282",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2647",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 5,
+                        "img": "https://infura-ipfs.io/ipfs/QmXz3beNihnXk6eFBwGCnArcG4w56WU8F8j4zE8pQDxKB9",
+                        "twins": [
+                            {
+                                "name": "2Bill5156",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1746",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5857",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3380",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5386",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1838",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5796",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1972",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5032",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2980",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 6,
+                        "img": "https://infura-ipfs.io/ipfs/QmcuMTdpNLbnWGzcJfxcAx5E8iiTE4P5MM8AQDaWFFh1F3",
+                        "twins": [
+                            {
+                                "name": "2Bill2878",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3683",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5695",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5490",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 7,
+                        "img": "https://infura-ipfs.io/ipfs/QmaWVSxCWJvLW9bAVMWN3YS1WQjTLh8KjY2d1ZHM52iJ1k",
+                        "twins": [
+                            {
+                                "name": "2Bill3875",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4178",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5647",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2946",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3703",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1702",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2638",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4472",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4093",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0861",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 8,
+                        "img": "https://infura-ipfs.io/ipfs/QmcmQ45vvEGEQFSdnRE8gVGi5dTxnKmRq4yBEsYHwgrwkF",
+                        "twins": [
+                            {
+                                "name": "2Bill1004",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0941",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3438",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4961",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4330",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0428",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5007",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3262",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 9,
+                        "img": "https://infura-ipfs.io/ipfs/QmZ1gwsTNySjeoFguzrabrAGwtpMtHp64aNjS7kRyLFJXN",
+                        "twins": [
+                            {
+                                "name": "2Bill1263",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2130",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2002",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1668",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5814",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4380",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1128",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1210",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3292",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4022",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2059",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4362",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0738",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3221",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 10,
+                        "img": "https://infura-ipfs.io/ipfs/QmdussCvMAgq5icoDxVhK4JDQ8TEmbAypigZPEvf6rGo2x",
+                        "twins": [
+                            {
+                                "name": "2Bill4120",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4377",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3431",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1959",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4045",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5731",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4546",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 12,
+                        "img": "https://infura-ipfs.io/ipfs/QmVtPznBcb7XJjVppRWxuPF21dsgFUYfsyGeurRXYphEE9",
+                        "twins": [
+                            {
+                                "name": "2Bill4912",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1025",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0258",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2365",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3560",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3912",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0484",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2066",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3031",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0536",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2095",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4747",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3903",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3499",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0657",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 14,
+                        "img": "https://infura-ipfs.io/ipfs/QmWDScHtTc6JrNvFAG7hipqdvgPevTTYPT1waLFWmPNewy",
+                        "twins": [
+                            {
+                                "name": "2Bill3877",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0423",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3961",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3921",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4278",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3584",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1886",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 16,
+                        "img": "https://infura-ipfs.io/ipfs/QmXhesbbKeMke2DFZRbeU1nubkLor5THV9hCuxSTWxcMQR",
+                        "twins": [
+                            {
+                                "name": "2Bill3957",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1598",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4446",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0499",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2288",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2313",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 20,
+                        "img": "https://infura-ipfs.io/ipfs/QmRThCMMsKzFGQjad3CTCv3amDVJmav8KWKtkgLP5ZeGeG",
+                        "twins": [
+                            {
+                                "name": "2Bill2388",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4873",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0214",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4031",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4372",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4739",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4409",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1162",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 21,
+                        "img": "https://infura-ipfs.io/ipfs/QmcuPTdf8khjBKQPZq99WsbwJsXjKq2hUTTMgrMw8roPBP",
+                        "twins": [
+                            {
+                                "name": "2Bill5303",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2562",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0017",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3725",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 22,
+                        "img": "https://infura-ipfs.io/ipfs/QmV1SaSrYN1RNBjcvvo1Hxv7viomAj3fgLubGhrpWqHZtz",
+                        "twins": [
+                            {
+                                "name": "2Bill0934",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3029",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1974",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2358",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3558",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4552",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 25,
+                        "img": "https://infura-ipfs.io/ipfs/QmPo6tnQWpJHWHR6jnLtto1CCNabuYuVkkVUdPoF72MH67",
+                        "twins": [
+                            {
+                                "name": "2Bill3017",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1747",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5757",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1821",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2142",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3967",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0298",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4932",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4381",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5550",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2925",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2126",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5886",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1120",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 26,
+                        "img": "https://infura-ipfs.io/ipfs/QmNYB1B2ThyFsKSxymPNJPTv7HPqz1Nq9NgSxF3TUSTiGP",
+                        "twins": [
+                            {
+                                "name": "2Bill1348",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3444",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4931",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5374",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 28,
+                        "img": "https://infura-ipfs.io/ipfs/QmXqpvFPZN3RratHXio4xhS46TtKdcNUL5VZcvKtknev4H",
+                        "twins": [
+                            {
+                                "name": "2Bill3534",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2063",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2720",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 29,
+                        "img": "https://infura-ipfs.io/ipfs/QmZMBHc1aK63S6aErMgxCaTNQ7t3oHm9z6BecxtqCT5HwK",
+                        "twins": [
+                            {
+                                "name": "2Bill3178",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3779",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0662",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0890",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 31,
+                        "img": "https://infura-ipfs.io/ipfs/QmNpLnTj7GYg2rE6gLC2SKqM9tg4NBt8wBpkfE6yzizfZw",
+                        "twins": [
+                            {
+                                "name": "2Bill4913",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2194",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3337",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1715",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4114",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3987",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5984",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5023",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1356",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2670",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 33,
+                        "img": "https://infura-ipfs.io/ipfs/QmaX2vsGn4Xpujwhbx1GdEu2mQRtpGWjiehZNNSQtgomfn",
+                        "twins": [
+                            {
+                                "name": "2Bill2411",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0889",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5613",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4899",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0200",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0619",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 34,
+                        "img": "https://infura-ipfs.io/ipfs/QmZzwYMS1DtcSRkzg5jYNdNTc1BEwgxEB6fmqKNbooF1CX",
+                        "twins": [
+                            {
+                                "name": "2Bill0334",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5700",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5205",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5753",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4833",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1997",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4529",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2515",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1017",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2646",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0984",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2008",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2337",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2237",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5745",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2540",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 35,
+                        "img": "https://infura-ipfs.io/ipfs/QmTgKPLwpQPHWNA5xtcSBftGy2bjuTndbinSFCingGWz9K",
+                        "twins": [
+                            {
+                                "name": "2Bill4113",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4356",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5189",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0146",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0366",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 38,
+                        "img": "https://infura-ipfs.io/ipfs/QmV4dkUtuZREzjSWsLjoxooHhJBkJDCwxnYR8QDJMQFdfV",
+                        "twins": [
+                            {
+                                "name": "2Bill1605",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4901",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3302",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0948",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 39,
+                        "img": "https://infura-ipfs.io/ipfs/QmWApckETaZRRJWNwkWjygkoeYqyBVCD2HAyr3TjNGRPCE",
+                        "twins": [
+                            {
+                                "name": "2Bill3532",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0441",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4182",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5317",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0341",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4602",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3983",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 40,
+                        "img": "https://infura-ipfs.io/ipfs/QmWv2bVGTMyjVtehvzgAhMwpXpB7MbNn9a4prgSM57pQnt",
+                        "twins": [
+                            {
+                                "name": "2Bill0383",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3851",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3733",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5539",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0453",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1966",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4515",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2285",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2801",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5564",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1206",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3758",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3540",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5477",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0290",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1163",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3868",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 43,
+                        "img": "https://infura-ipfs.io/ipfs/QmXmqc9JqTq2Cp1LdhxxhADmn3nBXpVdT3ysZkxF7QQGvW",
+                        "twins": [
+                            {
+                                "name": "2Bill2387",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0116",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5906",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 44,
+                        "img": "https://infura-ipfs.io/ipfs/QmW5fLkrFiaNhNw7iBfBPBAwE6ebgA4n52cAkXkXw6vnc2",
+                        "twins": [
+                            {
+                                "name": "2Bill3377",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0679",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1164",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2802",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1282",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1431",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 47,
+                        "img": "https://infura-ipfs.io/ipfs/QmeqiDA9hdrbvV94VTqN4Jw6YB2tCv2Na2vHFQNo3TjU3y",
+                        "twins": [
+                            {
+                                "name": "2Bill4221",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2465",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3879",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3589",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3364",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3433",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 48,
+                        "img": "https://infura-ipfs.io/ipfs/QmPhvF9LnHk8CDWDYoUdteHJSNXA2JCKgq1uToeuMc2X7T",
+                        "twins": [
+                            {
+                                "name": "2Bill3650",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1364",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5073",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2596",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4030",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5679",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4563",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3430",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1141",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3959",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 53,
+                        "img": "https://infura-ipfs.io/ipfs/QmYYaa2Z2MuZWWb4dMHSo9e5AwVyw8i5AxQ93cNwDQCACA",
+                        "twins": [
+                            {
+                                "name": "2Bill2421",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2842",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1159",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5366",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 59,
+                        "img": "https://infura-ipfs.io/ipfs/QmcrY1WsWY35rThjBkv1iVNkT6QxpcBcgzjbmGSiNVsSeu",
+                        "twins": [
+                            {
+                                "name": "2Bill7385",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill7416",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 61,
+                        "img": "https://infura-ipfs.io/ipfs/QmT5pNw8NYiFioHNxguhc2ziFfdAyuVhQSTd3XBpV19YS7",
+                        "twins": [
+                            {
+                                "name": "2Bill5992",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4040",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2158",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5838",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 70,
+                        "img": "https://infura-ipfs.io/ipfs/QmXemECr8W5jcJkk9WmS1gFVqx2PwDpwSSSDHAhGDAMDXp",
+                        "twins": [
+                            {
+                                "name": "2Bill3668",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4957",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3701",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 73,
+                        "img": "https://infura-ipfs.io/ipfs/QmceeEk3iBu3X1XKYFSZqUz9vp5WjgfZs6BBTy9MaScS2w",
+                        "twins": [
+                            {
+                                "name": "2Bill1021",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2233",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0622",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1888",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5421",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1712",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5916",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1699",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 74,
+                        "img": "https://infura-ipfs.io/ipfs/QmNV6VUZRh4CvQAFTnrGk7pDSbrpKLDRS2ogiVTpTMDFi6",
+                        "twins": [
+                            {
+                                "name": "2Bill1305",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3054",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1894",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5579",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3825",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5686",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3441",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1925",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 75,
+                        "img": "https://infura-ipfs.io/ipfs/QmRAUiSmUDgZv4oZ7Ckhr6r4xAsEzp8YJ5ZxGmHJm6oGo5",
+                        "twins": [
+                            {
+                                "name": "2Bill1380",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5075",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1545",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5812",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2666",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5989",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2255",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4585",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5406",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4162",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5702",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 77,
+                        "img": "https://infura-ipfs.io/ipfs/Qmdtd8qCe6WS8U6p865dV9FAEwh74SgYRr8Q9VopDB9cKv",
+                        "twins": [
+                            {
+                                "name": "2Bill5100",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4748",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3665",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5743",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5325",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0856",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4224",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4582",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3451",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 78,
+                        "img": "https://infura-ipfs.io/ipfs/QmcjS94DDFwk7BkPAPrXMHkeHEnYVbAL3oV8JTH2c2mRim",
+                        "twins": [
+                            {
+                                "name": "2Bill6847",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill7089",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 82,
+                        "img": "https://infura-ipfs.io/ipfs/QmRn5rrjheJrbcpRvrwbyYBjm4hDrjbGJjEC3BYyT1bqKE",
+                        "twins": [
+                            {
+                                "name": "2Bill2527",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2477",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2855",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0646",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2997",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0355",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4440",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1114",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2542",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 83,
+                        "img": "https://infura-ipfs.io/ipfs/QmeKs3MbhX8a7NA86kHoPkmuDgyvUMjcp7bwySzELThwKf",
+                        "twins": [
+                            {
+                                "name": "2Bill2868",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3215",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2835",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1750",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0793",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1251",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 85,
+                        "img": "https://infura-ipfs.io/ipfs/QmRS7C3ZikrA95ngGntBv5NUtvUs4dD1DYRPjjf4yNJLwg",
+                        "twins": [
+                            {
+                                "name": "2Bill3769",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3797",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0503",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4164",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 89,
+                        "img": "https://infura-ipfs.io/ipfs/QmW9NKJZnGHzKv9GPuaUu2trbFUkUjsZzaX7KWuQSaxUbg",
+                        "twins": [
+                            {
+                                "name": "2Bill0474",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3119",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5918",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3757",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3184",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0024",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2133",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4760",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 90,
+                        "img": "https://infura-ipfs.io/ipfs/QmQyFciJcFBdr1LPJo3FYXQTkwT6YNqtAHdqDKEjXSwq7a",
+                        "twins": [
+                            {
+                                "name": "2Bill1067",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3429",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1896",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2385",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4338",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 91,
+                        "img": "https://infura-ipfs.io/ipfs/QmSmtnm87bTWDgasVJZNjEYik6XbRqiUfwKDBJoq88vxXS",
+                        "twins": [
+                            {
+                                "name": "2Bill1591",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5139",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1791",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1872",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1962",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4361",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5622",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 95,
+                        "img": "https://infura-ipfs.io/ipfs/QmXrgt7B3vLgfSo6KgGtSpzuJ4fUbc6MpCrxvk4iKu7G5P",
+                        "twins": [
+                            {
+                                "name": "2Bill0697",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0899",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2218",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3986",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 96,
+                        "img": "https://infura-ipfs.io/ipfs/QmY35JpSM4cyDFFLmomBdhVoQmvhuNdnyrm4RCSGGbgVKS",
+                        "twins": [
+                            {
+                                "name": "2Bill1062",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2550",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1132",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4024",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5370",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 98,
+                        "img": "https://infura-ipfs.io/ipfs/QmUDD7FYmkhD5YRo9aJRvzWjLBKafdXdo4UAujC8GkwYpm",
+                        "twins": [
+                            {
+                                "name": "2Bill2882",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2731",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5481",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5428",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5728",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 100,
+                        "img": "https://infura-ipfs.io/ipfs/QmY7sZtCLockWsj4k8h658uN1aV1BiRyxnWS5ZbqiGGMuk",
+                        "twins": [
+                            {
+                                "name": "2Bill4460",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1884",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0846",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2378",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2360",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 108,
+                        "img": "https://infura-ipfs.io/ipfs/QmNt797qUjA8CTrNTFErkGwCv1gEcJ7cKDuSpmFqM6UM2V",
+                        "twins": [
+                            {
+                                "name": "2Bill6576",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill6715",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 110,
+                        "img": "https://infura-ipfs.io/ipfs/QmeJKbEdNd5Sa1qMjTJcUCawvxEQKkhP13ujhiSLD5nnuG",
+                        "twins": [
+                            {
+                                "name": "2Bill6831",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill6882",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 120,
+                        "img": "https://infura-ipfs.io/ipfs/QmcU1PxtvkhGbj6ruXYFbxvW8o7VwN6aPtLtPgVhKumkrQ",
+                        "twins": [
+                            {
+                                "name": "2Bill5010",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0440",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1281",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 134,
+                        "img": "https://infura-ipfs.io/ipfs/QmRXKAqtyMTiH7954DCQ3uo8Py4CkUWKbsjFTBgopb871u",
+                        "twins": [
+                            {
+                                "name": "2Bill1593",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2975",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4475",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5710",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4583",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 147,
+                        "img": "https://infura-ipfs.io/ipfs/QmZgQbCHDNmBaLftvJDfkgTpAKgrvAfPwfEkxpVwrcwTX7",
+                        "twins": [
+                            {
+                                "name": "2Bill2895",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5705",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2178",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2474",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3360",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4892",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 152,
+                        "img": "https://infura-ipfs.io/ipfs/QmdTE7k238WHkfmkkoSURZw5qE7xUCJkWmDhUrSGNQWqCg",
+                        "twins": [
+                            {
+                                "name": "2Bill2743",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3059",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5208",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 158,
+                        "img": "https://infura-ipfs.io/ipfs/QmQJ7beAVThdAt2YXJExZuGcy4LrVPB2uXw3DCrnY9cwGB",
+                        "twins": [
+                            {
+                                "name": "2Bill6614",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill6782",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 161,
+                        "img": "https://infura-ipfs.io/ipfs/QmStYZSF93Qm6jrjwxRRHBvT54dB63DhnK3x693whMbewm",
+                        "twins": [
+                            {
+                                "name": "2Bill2014",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0912",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4983",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1130",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4692",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 164,
+                        "img": "https://infura-ipfs.io/ipfs/QmZmUkM6HqC9C9McRQRE5ewzrBrGg9SULsYVZauYKXpeAQ",
+                        "twins": [
+                            {
+                                "name": "2Bill1995",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4557",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4853",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 174,
+                        "img": "https://infura-ipfs.io/ipfs/QmcKBSY8VJBnAFQN4CAzgu42VYKvFzSuTNEJCMhkgRYppJ",
+                        "twins": [
+                            {
+                                "name": "2Bill3406",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4625",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3003",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3145",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 178,
+                        "img": "https://infura-ipfs.io/ipfs/QmX8TeDP3ic6U3n3EighwaySVDXsRiSB8q1KLhKVP4y5xY",
+                        "twins": [
+                            {
+                                "name": "2Bill5330",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5012",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0882",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 182,
+                        "img": "https://infura-ipfs.io/ipfs/QmW1VsiKHkf4eX9gKjJ6VeYW2QmpujijuMEy4AwJCLmWM1",
+                        "twins": [
+                            {
+                                "name": "2Bill4251",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3815",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4370",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 190,
+                        "img": "https://infura-ipfs.io/ipfs/QmVfSejai6Bt4AcwrmchCPkZEAwQ3tToaFBvQxPNDvfEr8",
+                        "twins": [
+                            {
+                                "name": "2Bill6777",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill6572",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 194,
+                        "img": "https://infura-ipfs.io/ipfs/QmZzXpXYNoMVfe4AKoAeNvX4vCHo548fZJ5iXKQFftqPWM",
+                        "twins": [
+                            {
+                                "name": "2Bill3439",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5377",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5947",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0631",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 197,
+                        "img": "https://infura-ipfs.io/ipfs/QmQ7iq8JASayAgiKsgdWEB4abzhFBsNmTgMatX2qqLBbpz",
+                        "twins": [
+                            {
+                                "name": "2Bill2281",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3301",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 209,
+                        "img": "https://infura-ipfs.io/ipfs/QmXk6WNK1sAd7x7T6Z1svbmJ2j694itFhK3FYeYnqzQUGN",
+                        "twins": [
+                            {
+                                "name": "2Bill4728",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4878",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0562",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2885",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 216,
+                        "img": "https://infura-ipfs.io/ipfs/QmZdZvZVAiDai7UNaUhG32hRuSBuSwGXH4NvyDPq4xuhmZ",
+                        "twins": [
+                            {
+                                "name": "2Bill7066",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill7074",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 218,
+                        "img": "https://infura-ipfs.io/ipfs/QmbiAcEYhUqMw13syVwQ8mB9j5uV6JnzaDDfFQMjkkv27u",
+                        "twins": [
+                            {
+                                "name": "2Bill1334",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1512",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5258",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5703",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3767",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 220,
+                        "img": "https://infura-ipfs.io/ipfs/QmXrBVBAMpC5bExkRobCV1ua6LZmEzk8nBXc52wRg8EZZE",
+                        "twins": [
+                            {
+                                "name": "2Bill3580",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1579",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0827",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5178",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2738",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 221,
+                        "img": "https://infura-ipfs.io/ipfs/QmWoHt6GwmWqp9FJ7b55RqTeBEcyAyv6jQHozj889Wcf4Y",
+                        "twins": [
+                            {
+                                "name": "2Bill3804",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2335",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 222,
+                        "img": "https://infura-ipfs.io/ipfs/QmY2N26R2ykMB1tEYMasiFa2YdCG6g3Z2vs7WiDGFB9tzN",
+                        "twins": [
+                            {
+                                "name": "2Bill5905",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4269",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3874",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0883",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill2608",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 239,
+                        "img": "https://infura-ipfs.io/ipfs/QmcqoVCXfNFDGFgdxRYT7iv1TG3eF21F9nYGi8mMP5dyic",
+                        "twins": [
+                            {
+                                "name": "2Bill0806",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1731",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 246,
+                        "img": "https://infura-ipfs.io/ipfs/QmbjUy4osuD89MtzooixRnsbk14Xej6szpp5gfXDKWN9aH",
+                        "twins": [
+                            {
+                                "name": "2Bill3826",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4721",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill0279",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill5033",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 273,
+                        "img": "https://infura-ipfs.io/ipfs/QmPUYUif1vSvxe6LsvhcbEkDkzn8tSS1yq4MFbRyouxzLP",
+                        "twins": [
+                            {
+                                "name": "2Bill6894",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill6987",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 332,
+                        "img": "https://infura-ipfs.io/ipfs/QmWbLyaeyEJtjXixwanFcuNcoLcaB5dmFnE7ZHVLiHH1L7",
+                        "twins": [
+                            {
+                                "name": "2Bill0728",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4235",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 335,
+                        "img": "https://infura-ipfs.io/ipfs/QmP7cnKJHkDB7AtNszYqLoBawSXWSg2K1BuYhKsMXjhBdK",
+                        "twins": [
+                            {
+                                "name": "2Bill3860",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4655",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 393,
+                        "img": "https://infura-ipfs.io/ipfs/QmRmSBVeDZoNUtMfxrfLd7wSRUCmvFqzGnUJBkBea55UDg",
+                        "twins": [
+                            {
+                                "name": "2Bill1262",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1455",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill4792",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    },
+                    {
+                        "id": 400,
+                        "img": "https://infura-ipfs.io/ipfs/Qmae5yGoxud4Ux1g4jwqgSc1vQNoLbEXELknCTFTLeJ4fM",
+                        "twins": [
+                            {
+                                "name": "2Bill3844",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill1375",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            },
+                            {
+                                "name": "2Bill3518",
+                                "own": false,
+                                "jpgstore": false,
+                                "assetId": ""
+                            }
+                        ]
+                    }
+                ]
+        }
+    }
+</script>
